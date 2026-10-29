@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -65,5 +66,20 @@ func TestReadConfig(t *testing.T) {
 	os.WriteFile(p, []byte(`{"url":"https://example.com","key":"test"}`), 0600)
 	if _, e := readConfig(p); e == nil {
 		t.Fatal("expected invalid URL")
+	}
+}
+
+func TestMessagePreview(t *testing.T) {
+	e, err := makeEvent(Input{Event: "Stop", Message: "  已完成\n测试  "}, "host")
+	if err != nil || e.Preview != "已完成 测试" {
+		t.Fatalf("unexpected preview: %q %v", e.Preview, err)
+	}
+	e, _ = makeEvent(Input{Event: "PermissionRequest", Message: "not a reply"}, "host")
+	if e.Preview != "" {
+		t.Fatal("unexpected preview for other event")
+	}
+	e, _ = makeEvent(Input{Event: "Stop", Message: strings.Repeat("😀", 220)}, "host")
+	if len([]rune(e.Preview)) != 200 {
+		t.Fatal("preview must respect Unicode character limit")
 	}
 }

@@ -23,6 +23,7 @@ type Config struct {
 	Source string `json:"source"`
 }
 type Input struct {
+	Message string `json:"last_assistant_message"`
 	Event   string `json:"hook_event_name"`
 	Session string `json:"session_id"`
 	Cwd     string `json:"cwd"`
@@ -30,6 +31,7 @@ type Input struct {
 	Tool    string `json:"tool_name"`
 }
 type Event struct {
+	Preview string `json:"preview,omitempty"`
 	Version int    `json:"version"`
 	ID      string `json:"id"`
 	Time    string `json:"time"`
@@ -83,7 +85,11 @@ func makeEvent(in Input, source string) (Event, error) {
 	if _, err := rand.Read(id); err != nil {
 		return Event{}, err
 	}
-	return Event{1, hex.EncodeToString(id), time.Now().UTC().Format(time.RFC3339Nano), clip(source, 128), clip(in.Event, 128), clip(in.Session, 256), clip(in.Cwd, 1024), clip(in.Turn, 256), clip(in.Tool, 256)}, nil
+	preview := ""
+	if in.Event == "Stop" || in.Event == "SubagentStop" {
+		preview = clip(strings.Join(strings.Fields(in.Message), " "), 200)
+	}
+	return Event{preview, 1, hex.EncodeToString(id), time.Now().UTC().Format(time.RFC3339Nano), clip(source, 128), clip(in.Event, 128), clip(in.Session, 256), clip(in.Cwd, 1024), clip(in.Turn, 256), clip(in.Tool, 256)}, nil
 }
 func send(c Config, ev Event) error {
 	body, e := json.Marshal(ev)
