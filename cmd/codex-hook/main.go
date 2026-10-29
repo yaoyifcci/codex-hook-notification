@@ -23,24 +23,28 @@ type Config struct {
 	Source string `json:"source"`
 }
 type Input struct {
-	Message string `json:"last_assistant_message"`
-	Event   string `json:"hook_event_name"`
-	Session string `json:"session_id"`
-	Cwd     string `json:"cwd"`
-	Turn    string `json:"turn_id"`
-	Tool    string `json:"tool_name"`
+	ToolInput    json.RawMessage `json:"tool_input"`
+	ToolResponse json.RawMessage `json:"tool_response"`
+	Message      string          `json:"last_assistant_message"`
+	Event        string          `json:"hook_event_name"`
+	Session      string          `json:"session_id"`
+	Cwd          string          `json:"cwd"`
+	Turn         string          `json:"turn_id"`
+	Tool         string          `json:"tool_name"`
 }
 type Event struct {
-	Preview string `json:"preview,omitempty"`
-	Version int    `json:"version"`
-	ID      string `json:"id"`
-	Time    string `json:"time"`
-	Source  string `json:"source"`
-	Event   string `json:"event"`
-	Session string `json:"session_id"`
-	Cwd     string `json:"cwd"`
-	Turn    string `json:"turn_id,omitempty"`
-	Tool    string `json:"tool_name,omitempty"`
+	ToolInput    string `json:"tool_input_preview,omitempty"`
+	ToolResponse string `json:"tool_response_preview,omitempty"`
+	Preview      string `json:"preview,omitempty"`
+	Version      int    `json:"version"`
+	ID           string `json:"id"`
+	Time         string `json:"time"`
+	Source       string `json:"source"`
+	Event        string `json:"event"`
+	Session      string `json:"session_id"`
+	Cwd          string `json:"cwd"`
+	Turn         string `json:"turn_id,omitempty"`
+	Tool         string `json:"tool_name,omitempty"`
 }
 
 var events = []string{"SessionStart", "SessionEnd", "UserPromptSubmit", "PreToolUse", "PermissionRequest", "PostToolUse", "PreCompact", "PostCompact", "SubagentStart", "SubagentStop", "Stop", "Interrupt"}
@@ -77,6 +81,24 @@ func clip(s string, n int) string {
 	}
 	return s
 }
+func jsonPreview(raw json.RawMessage, limit int) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var text string
+	if json.Unmarshal(raw, &text) != nil {
+		var b bytes.Buffer
+		if json.Compact(&b, raw) != nil {
+			return ""
+		}
+		text = b.String()
+	}
+	text = strings.TrimSpace(text)
+	if len([]rune(text)) > limit {
+		return clip(text, limit-1) + "…"
+	}
+	return text
+}
 func makeEvent(in Input, source string) (Event, error) {
 	if in.Event == "" {
 		return Event{}, errors.New("hook_event_name is required")
@@ -89,7 +111,14 @@ func makeEvent(in Input, source string) (Event, error) {
 	if in.Event == "Stop" || in.Event == "SubagentStop" {
 		preview = clip(strings.Join(strings.Fields(in.Message), " "), 200)
 	}
-	return Event{preview, 1, hex.EncodeToString(id), time.Now().UTC().Format(time.RFC3339Nano), clip(source, 128), clip(in.Event, 128), clip(in.Session, 256), clip(in.Cwd, 1024), clip(in.Turn, 256), clip(in.Tool, 256)}, nil
+	args, result := "", ""
+	if in.Event == "PreToolUse" || in.Event == "PostToolUse" {
+		args = jsonPreview(in.ToolInput, 1000)
+	}
+	if in.Event == "PostToolUse" {
+		result = jsonPreview(in.ToolResponse, 2000)
+	}
+	return Event{args, result, preview, 1, hex.EncodeToString(id), time.Now().UTC().Format(time.RFC3339Nano), clip(source, 128), clip(in.Event, 128), clip(in.Session, 256), clip(in.Cwd, 1024), clip(in.Turn, 256), clip(in.Tool, 256)}, nil
 }
 func send(c Config, ev Event) error {
 	body, e := json.Marshal(ev)

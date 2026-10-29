@@ -24,7 +24,7 @@ function notify(event) {
   if (recentNotifications.has(group)) {record.notification='merged';persistRecords();return;}
   recentNotifications.set(group, now);
   const project=event.cwd.split(/[\\/]/).filter(Boolean).pop() || event.cwd;
-  try { const n=new Notification({title:`Codex · ${event.event}`,body:[ [event.source, project, event.tool_name].filter(Boolean).join(' · '), event.preview ].filter(Boolean).join('\n')}); n.on('click',()=>showWindow(event.id)); n.on('show',()=>{record.notification='shown';persistRecords();push();});n.on('failed',()=>{record.notification='failed';persistRecords();push();});n.show();record.notification='requested'; }
+  try { const n=new Notification({title:`Codex · ${event.event}`,body:[ [event.source, project, event.tool_name].filter(Boolean).join(' · '), event.preview, event.tool_input_preview && '参数：'+[...event.tool_input_preview].slice(0,180).join(''), event.tool_response_preview && '结果：'+[...event.tool_response_preview].slice(0,180).join('') ].filter(Boolean).join('\n')}); n.on('click',()=>showWindow(event.id)); n.on('show',()=>{record.notification='shown';persistRecords();push();});n.on('failed',()=>{record.notification='failed';persistRecords();push();});n.show();record.notification='requested'; }
   catch {record.notification='failed';} persistRecords();
 }
 function receive(event) { const result=addRecord(records,event); if(result.duplicate)return true; const old=records; records=result.records; try{persistRecords();}catch(e){records=old;throw e;} setImmediate(()=>{try{notify(event);}catch(e){console.error('notification error',e);}push();}); return false; }

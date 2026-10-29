@@ -83,3 +83,28 @@ func TestMessagePreview(t *testing.T) {
 		t.Fatal("preview must respect Unicode character limit")
 	}
 }
+
+func TestToolDetails(t *testing.T) {
+	raw := []byte(`{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"ls"},"tool_response":{"exit_code":0,"output":"ok"}}`)
+	var in Input
+	if err := json.Unmarshal(raw, &in); err != nil {
+		t.Fatal(err)
+	}
+	e, _ := makeEvent(in, "host")
+	if e.Tool != "Bash" || e.ToolInput != `{"command":"ls"}` || e.ToolResponse != `{"exit_code":0,"output":"ok"}` {
+		t.Fatalf("bad event: %+v", e)
+	}
+	in.Event = "PreToolUse"
+	e, _ = makeEvent(in, "host")
+	if e.ToolInput == "" || e.ToolResponse != "" {
+		t.Fatal("pre event leaked result")
+	}
+	if jsonPreview(json.RawMessage(`"hello"`), 100) != "hello" {
+		t.Fatal("string output not decoded")
+	}
+	b, _ := json.Marshal(strings.Repeat("😀", 3000))
+	p := jsonPreview(b, 2000)
+	if len([]rune(p)) != 2000 || !strings.HasSuffix(p, "…") {
+		t.Fatal("invalid truncation")
+	}
+}

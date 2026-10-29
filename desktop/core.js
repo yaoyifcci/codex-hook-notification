@@ -20,9 +20,10 @@ function validEvent(e) {
   if (Number.isNaN(Date.parse(e.time))) return false;
   for (const k of ['turn_id','tool_name']) if (e[k] !== undefined && (typeof e[k] !== 'string' || e[k].length > 256)) return false;
   if (e.preview !== undefined && (typeof e.preview !== 'string' || [...e.preview].length > 200)) return false;
+  for (const [key,max] of [['tool_input_preview',1000],['tool_response_preview',2000]]) if(e[key] !== undefined && (typeof e[key] !== 'string' || [...e[key]].length > max)) return false;
   return true;
 }
-function sanitize(e) { const result = {}; for (const k of ['version','id','time','source','event','session_id','cwd','turn_id','tool_name','preview']) if (e[k] !== undefined) result[k] = e[k]; return result; }
+function sanitize(e) { const result = {}; for (const k of ['version','id','time','source','event','session_id','cwd','turn_id','tool_name','preview','tool_input_preview','tool_response_preview']) if (e[k] !== undefined) result[k] = e[k]; return result; }
 function createReceiver({ getKey, accept, onError = console.error }) {
   return http.createServer((req, res) => {
     const reply = (status, value) => { if (!res.headersSent) { res.writeHead(status, {'Content-Type': 'application/json', 'Cache-Control':'no-store'}); res.end(JSON.stringify(value)); } };
