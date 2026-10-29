@@ -3,7 +3,26 @@ const $ = id => document.getElementById(id); let snapshot, selected;
 function error(e){$('error').hidden=false;$('error').textContent=e?.message || String(e);}
 function page(name){document.querySelectorAll('main section').forEach(el=>el.hidden=el.id!==name);document.querySelectorAll('nav button').forEach(el=>el.classList.toggle('active',el.dataset.page===name));}
 document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>page(b.dataset.page)));
-function renderRecords(){const box=$('records');box.replaceChildren();if(!snapshot.records.length){box.textContent='暂无记录';return;}for(const r of snapshot.records){const row=document.createElement('div');row.className='record'+(r.id===selected?' selected':'');const title=document.createElement('strong');title.textContent=r.event+' · '+(r.session_title || '会话 '+(r.session_id || '未知'));const summary=document.createElement('span');summary.textContent=`  ${r.source} · ${r.cwd || '未知项目'}`;const detail=document.createElement('small');detail.textContent=`${new Date(r.time).toLocaleString()} · 会话 ${r.session_id || '—'} · ${r.tool_name || '—'} · 通知状态：${r.notification || '未知'}`;row.append(title,summary,detail);if(r.preview){const preview=document.createElement('p');preview.textContent=r.preview;row.append(preview);}for(const [key,label] of [['tool_input_preview','参数'],['tool_response_preview','结果']]){if(r[key]){const pre=document.createElement('pre');pre.textContent=label+'：\n'+r[key];row.append(pre);}}box.append(row);if(r.id===selected)row.scrollIntoView({block:'nearest'});}}
+function renderRecords() {
+  const box=$('records'); box.replaceChildren();
+  if(!snapshot.records.length){box.textContent='暂无记录';return;}
+  for(const r of snapshot.records) {
+    const row=document.createElement('article'); row.className='record'+(r.id===selected?' selected':'');
+    const heading=document.createElement('div'); heading.className='record-heading';
+    const badge=document.createElement('span'); badge.className='record-event'; badge.textContent=r.event;
+    const title=document.createElement('strong'); title.textContent=r.session_title || '会话 '+(r.session_id || '未知');
+    heading.append(badge,title);
+    const summary=document.createElement('div'); summary.className='record-summary'; summary.textContent=`${r.source} · ${r.cwd || '未知项目'}`;
+    const detail=document.createElement('small'); detail.textContent=`${new Date(r.time).toLocaleString()} · 会话 ${r.session_id || '—'} · 工具 ${r.tool_name || '—'} · 通知状态：${r.notification || '未知'}`;
+    row.append(heading,summary,detail);
+    if(r.preview){const preview=document.createElement('p');preview.className='record-preview';preview.textContent=r.preview;row.append(preview);}
+    for(const [key,label] of [['tool_input_preview','参数'],['tool_response_preview','结果']]) {
+      if(r[key])row.append(window.CodeView.createCodeView(label,r[key]));
+    }
+    box.append(row);
+    if(r.id===selected)row.scrollIntoView({block:'nearest'});
+  }
+}
 function renderAll(){const s=snapshot.settings;$('status').textContent=snapshot.status;$('host').value=s.host;$('port').value=s.port;$('key').value=snapshot.key;$('addresses').textContent=snapshot.addresses.join('、')||'未找到';$('paused').checked=s.paused;const list=$('event-list');list.replaceChildren();for(const event of [...new Set([...snapshot.events,...snapshot.records.map(r=>r.event).filter(e=>e!=='Test')])]){const label=document.createElement('label');const cb=document.createElement('input');cb.type='checkbox';cb.value=event;cb.checked=s.enabled.includes(event);label.append(cb,document.createTextNode(' '+event));list.append(label);}const host=snapshot.addresses[0]||'桌面内网IP';$('config-example').textContent=JSON.stringify({url:`http://${host}:${s.port}`,key:snapshot.key,source:'my-linux-server'},null,2);renderRecords();}
 async function refresh(){try{snapshot=await window.api.snapshot();renderAll();}catch(e){error(e)}}
 async function save(){try{await window.api.saveSettings({host:$('host').value,port:Number($('port').value),enabled:[...$('event-list').querySelectorAll('input:checked')].map(x=>x.value),paused:$('paused').checked});$('error').hidden=true;await refresh();}catch(e){error(e)}}
