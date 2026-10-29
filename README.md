@@ -58,3 +58,14 @@ npx electron-builder --win zip --x64  # 构建 Windows 免安装包
 ```
 
 构建产物位于 `dist/`。macOS 签名、公证和 Windows 签名需要自行提供相应证书和 electron-builder 环境配置；未签名包可能触发系统安全提示。未设置证书时生成的包仅用于本地测试。跨平台系统通知、托盘、系统权限和安装行为需要分别在目标 Windows x64 与 macOS arm64 真机验证。
+
+## GitHub Actions 发布
+
+向 GitHub 推送 `v` 开头的版本标签（例如 `v1.0.0`）会触发构建；所有构建和测试成功后，流水线自动创建对应 Release，附带 Windows x64 ZIP、macOS arm64 ZIP 以及 Linux amd64/arm64 发送器。推送到 `main`、提交 PR 或手动运行只构建并保留短期 Actions artifacts，不创建 Release。
+
+```sh
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+Windows ZIP 解压后运行 `Codex LAN Notify.exe`；macOS ZIP 解压后运行 `.app`。流水线不配置代码签名或 Apple 公证，系统可能提示应用来自未知开发者。使用前请确认下载来源并在系统设置中允许打开。
