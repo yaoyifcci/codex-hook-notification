@@ -1,0 +1,27 @@
+{
+  "name": "codex-lan-notify",
+  "version": "1.0.0",
+  "description": "Codex LAN desktop notifications",
+  "main": "desktop/main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.js",
+    "build:mac": "electron-builder --mac dmg --arm64",
+    "build:win": "electron-builder --win nsis --x64",
+    "build:linux-sender": "sh scripts/build-sender.sh"
+  },
+  "devDependencies": {
+    "electron": "^37.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.codexhook.lannotify",
+    "productName": "Codex LAN Notify",
+    "files": ["desktop/**/*", "package.json"],
+    "directories": {"output": "dist"},
+    "mac": {"target": "dmg", "category": "public.app-category.utilities"},
+    "win": {"target": "nsis"},
+    "nsis": {"oneClick": false, "allowToChangeInstallationDirectory": true}
+  }
+}
