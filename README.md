@@ -113,3 +113,7 @@ git push origin v1.0.0
 ```
 
 Windows ZIP 解压后运行 `Codex LAN Notify.exe`；macOS ZIP 解压后运行 `.app`。流水线不配置代码签名或 Apple 公证，系统可能提示应用来自未知开发者。使用前请确认下载来源并在系统设置中允许打开。
+
+## 通知中的会话标题和目录
+
+通知标题显示会话标题，正文显示完整工作目录。发送器优先使用 hook 中可选的 `session_title`；当前官方 hook 公共字段不保证提供标题，因此还会尝试从 `$CODEX_HOME/session_index.jsonl`（默认 `~/.codex/session_index.jsonl`）按会话 ID 读取最新的 `thread_name`。这个索引格式不是稳定接口；仅检查文件末尾最多 4 MiB，缺失、损坏或找不到时回退显示会话 ID，不影响通知。不会用项目名或用户提示词冒充会话标题。系统通知界面可能自行折叠较长的标题或目录，应用近期记录保留传输的标题和目录。

@@ -23,6 +23,7 @@ type Config struct {
 	Source string `json:"source"`
 }
 type Input struct {
+	Title        string          `json:"session_title"`
 	ToolInput    json.RawMessage `json:"tool_input"`
 	ToolResponse json.RawMessage `json:"tool_response"`
 	Message      string          `json:"last_assistant_message"`
@@ -33,6 +34,7 @@ type Input struct {
 	Tool         string          `json:"tool_name"`
 }
 type Event struct {
+	Title        string `json:"session_title,omitempty"`
 	ToolInput    string `json:"tool_input_preview,omitempty"`
 	ToolResponse string `json:"tool_response_preview,omitempty"`
 	Preview      string `json:"preview,omitempty"`
@@ -99,6 +101,55 @@ func jsonPreview(raw json.RawMessage, limit int) string {
 	}
 	return text
 }
+
+// The local index is best-effort metadata, not a stable hook API.
+func sessionTitle(session string) string {
+	if session == "" {
+		return ""
+	}
+	dir := os.Getenv("CODEX_HOME")
+	if dir == "" {
+		h, _ := os.UserHomeDir()
+		dir = filepath.Join(h, ".codex")
+	}
+	return titleFromIndex(filepath.Join(dir, "session_index.jsonl"), session)
+}
+func titleFromIndex(path, session string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil || !st.Mode().IsRegular() {
+		return ""
+	}
+	offset := st.Size() - 4*1024*1024
+	if offset < 0 {
+		offset = 0
+	}
+	if _, err = f.Seek(offset, io.SeekStart); err != nil {
+		return ""
+	}
+	b, err := io.ReadAll(io.LimitReader(f, 4*1024*1024))
+	if err != nil {
+		return ""
+	}
+	lines := bytes.Split(b, []byte("\n"))
+	if offset > 0 && len(lines) > 0 {
+		lines = lines[1:]
+	}
+	for i := len(lines) - 1; i >= 0; i-- {
+		var row struct {
+			ID   string `json:"id"`
+			Name string `json:"thread_name"`
+		}
+		if json.Unmarshal(lines[i], &row) == nil && row.ID == session && strings.TrimSpace(row.Name) != "" {
+			return clip(strings.Join(strings.Fields(row.Name), " "), 200)
+		}
+	}
+	return ""
+}
 func makeEvent(in Input, source string) (Event, error) {
 	if in.Event == "" {
 		return Event{}, errors.New("hook_event_name is required")
@@ -118,7 +169,11 @@ func makeEvent(in Input, source string) (Event, error) {
 	if in.Event == "PostToolUse" {
 		result = jsonPreview(in.ToolResponse, 2000)
 	}
-	return Event{args, result, preview, 1, hex.EncodeToString(id), time.Now().UTC().Format(time.RFC3339Nano), clip(source, 128), clip(in.Event, 128), clip(in.Session, 256), clip(in.Cwd, 1024), clip(in.Turn, 256), clip(in.Tool, 256)}, nil
+	title := clip(strings.Join(strings.Fields(in.Title), " "), 200)
+	if title == "" {
+		title = sessionTitle(in.Session)
+	}
+	return Event{title, args, result, preview, 1, hex.EncodeToString(id), time.Now().UTC().Format(time.RFC3339Nano), clip(source, 128), clip(in.Event, 128), clip(in.Session, 256), clip(in.Cwd, 1024), clip(in.Turn, 256), clip(in.Tool, 256)}, nil
 }
 func send(c Config, ev Event) error {
 	body, e := json.Marshal(ev)

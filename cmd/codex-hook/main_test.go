@@ -108,3 +108,20 @@ func TestToolDetails(t *testing.T) {
 		t.Fatal("invalid truncation")
 	}
 }
+
+func TestSessionTitle(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("CODEX_HOME", dir)
+	os.WriteFile(filepath.Join(dir, "session_index.jsonl"), []byte("bad\n{\"id\":\"s\",\"thread_name\":\"旧标题\"}\n{\"id\":\"s\",\"thread_name\":\"新标题\"}\n"), 0600)
+	e, _ := makeEvent(Input{Event: "Stop", Session: "s", Cwd: "/work/project"}, "host")
+	if e.Title != "新标题" || e.Cwd != "/work/project" {
+		t.Fatalf("bad event: %+v", e)
+	}
+	e, _ = makeEvent(Input{Event: "Stop", Session: "s", Title: "明确标题"}, "host")
+	if e.Title != "明确标题" {
+		t.Fatal("explicit title must win")
+	}
+	if sessionTitle("missing") != "" {
+		t.Fatal("missing title must remain empty")
+	}
+}
