@@ -34,9 +34,53 @@ chmod 600 "$HOME/.config/codex-hook/config.json"
 "$HOME/.local/bin/codex-hook" hooks
 ```
 
-`test` 会在桌面显示测试通知。`hooks` 输出完整的 JSON 配置，其中命令使用发送器和配置文件的绝对路径；可用 `--config /path/config.json` 指定其他配置文件。如果 `~/.codex/hooks.json` 不存在，可将输出保存为该文件；如果已存在，**先备份，再将输出的各事件数组合并到现有 `hooks` 对象**，保留原有 hook，不要直接覆盖。每个事件下可以有多个 handler。也可合并到项目 `.codex/hooks.json`。
+### 将 hook 注册到 Codex
 
-在 Codex CLI 中运行 `/hooks`，审核并信任新增 hook。确认远程 CLI 版本支持命令型 hooks，且没有被管理策略禁用。详见 [Codex Hooks 官方文档](https://learn.chatgpt.com/docs/hooks)。`SessionEnd` 始终同步运行；其他生成的 hook 配置请求后台执行，具体可用性取决于 Codex 版本。
+`test` 成功只说明发送器可以连接桌面。`codex-hook hooks` **只打印配置，不会自动修改 Codex 配置文件**。把程序放入 `.local/bin` 或 PATH 不会让 Codex 自动发现它。如果你将程序命名为 `codex-hooks`，请相应替换下面命令中的名称。
+
+请在运行 Codex 的同一台 Linux、同一个用户下执行：
+
+```sh
+hook_dir="${CODEX_HOME:-$HOME/.codex}"
+mkdir -p "$hook_dir"
+
+# 不覆盖已有 hook 配置；已有文件时打印待合并的配置
+if [ -e "$hook_dir/hooks.json" ]; then
+  echo "已有配置，请先备份，再手动合并：$hook_dir/hooks.json"
+  "$HOME/.local/bin/codex-hook" hooks
+else
+  (set -C; "$HOME/.local/bin/codex-hook" hooks > "$hook_dir/hooks.json")
+fi
+```
+
+如果发送器使用自定义配置路径，生成时使用 `codex-hook hooks --config /绝对路径/config.json`，并将输出保存或合并到同一 `hooks.json`。生成结果包含发送器及其配置文件的绝对路径；移动程序或配置文件后应重新生成对应定义。已有文件时，将各事件数组中的条目追加到现有 `hooks` 对象，保留其他 hook，避免整体覆盖。
+
+保存后退出并重新启动 Codex CLI，输入 `/hooks`，审核并信任新增定义。列表按 `Stop`、`PermissionRequest` 等事件组织，不一定显示名为 `codex-hook` 的“工具”。修改定义后可能需要重新信任。
+
+### Codex 如何加载和执行 hook
+
+这是基于配置文件的事件订阅，不是安装一个 MCP 工具，也不需要模型通过提示词记住它：
+
+1. Codex 从活动配置层加载 `hooks.json`，也支持 `config.toml` 中的内联 `[hooks]` 表。
+2. 每个事件配置一个或多个命令 handler；事件触发且定义已信任时，Codex 启动指定命令。
+3. Codex 把事件 JSON 写入命令的标准输入；本项目的 `send` 命令提取元数据，通过 HTTP 转发到桌面。
+
+用户级默认路径是 `~/.codex/hooks.json`；自定义 `CODEX_HOME` 时应使用对应目录。项目级也可以使用 `<项目>/.codex/hooks.json`，但项目配置层必须受信任。本项目推荐独立 `hooks.json`，**无需修改已有 `config.toml`**；同一层中混用两种表示会被合并并可能产生警告。不要在两处重复注册同一发送器，否则可能产生重复通知。
+
+确认远程 CLI 版本支持命令型 hooks、功能未关闭且未被管理策略禁用。`SessionEnd` 始终同步运行；其他生成的 hook 配置请求后台执行，具体可用性取决于 Codex 版本。详见 [Codex Hooks 官方文档](https://learn.chatgpt.com/docs/hooks)。
+
+### `/hooks` 看不到配置时
+
+先重启 CLI，然后在启动 Codex 的同一个终端检查：
+
+```sh
+codex --version
+printf 'CODEX_HOME=%s\n' "${CODEX_HOME:-未设置}"
+ls -l "${CODEX_HOME:-$HOME/.codex}/hooks.json"
+cat "${CODEX_HOME:-$HOME/.codex}/hooks.json"
+```
+
+检查文件是否实际存在、JSON 是否完整、命令路径是否正确，以及是否用了不同用户、容器或 `CODEX_HOME`。排查时无需分享包含 key 的 `~/.config/codex-hook/config.json`。
 
 默认只弹出 `Stop` 和 `PermissionRequest`。其余事件可在桌面事件设置中开启；未开启的事件仍记录。测试事件始终弹窗，暂停提醒时除外。记录包含事件类型、时间、主机、会话 ID、目录及可选工具名，不发送提示词和工具内容。HTTP 返回成功表示事件已存储，并不保证操作系统最终显示了通知。
 
